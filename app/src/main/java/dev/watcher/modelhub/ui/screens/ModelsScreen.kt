@@ -39,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.watcher.modelhub.data.Advice
 import dev.watcher.modelhub.data.AppSettings
@@ -326,16 +325,5 @@ fun ModelsScreen(
             )
         }
 
-        item {
-            Text(
-                text = "Минимум интерфейса. Максимум контроля.",
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-            )
-        }
     }
 }

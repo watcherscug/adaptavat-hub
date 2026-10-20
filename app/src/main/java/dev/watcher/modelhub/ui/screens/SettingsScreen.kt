@@ -239,12 +239,6 @@ fun SettingsScreen(
                 InfoRow("Версия", "0.1.0 · UI + HF API")
                 InfoRow("Источник моделей", "huggingface.co/api/models")
                 InfoRow("Фильтр", "type=model · gguf")
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = "«Максимум кастома. Максимум минимализма.»",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.onSurfaceVariant,
-                )
                 Spacer(Modifier.height(6.dp))
                 TextButton(onClick = { onChange { AppSettings() } }) {
                     Text("Сбросить настройки")
