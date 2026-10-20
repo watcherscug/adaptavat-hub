@@ -49,7 +49,6 @@ import dev.watcher.modelhub.ui.components.FilterPill
 import dev.watcher.modelhub.ui.components.InfoRow
 import dev.watcher.modelhub.ui.components.SectionHeader
 import dev.watcher.modelhub.ui.components.SurfaceCard
-import dev.watcher.modelhub.ui.components.YinYang
 
 @Composable
 fun SettingsScreen(
@@ -82,7 +81,6 @@ fun SettingsScreen(
                     color = colors.onBackground,
                     modifier = Modifier.weight(1f),
                 )
-                YinYang(Modifier.size(30.dp), rotating = true)
             }
         }
 

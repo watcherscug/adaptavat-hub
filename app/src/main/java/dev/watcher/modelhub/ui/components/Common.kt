@@ -1,12 +1,5 @@
 package dev.watcher.modelhub.ui.components
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,69 +25,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.watcher.modelhub.ui.LocalUiConfig
-
-@Composable
-fun YinYang(
-    modifier: Modifier = Modifier,
-    light: Color = MaterialTheme.colorScheme.onSurface,
-    dark: Color = MaterialTheme.colorScheme.surface,
-    outline: Color = MaterialTheme.colorScheme.outlineVariant,
-    rotating: Boolean = false,
-) {
-    val rotation = if (rotating) {
-        val transition = rememberInfiniteTransition(label = "yin-yang")
-        transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 28000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-            label = "rotation",
-        ).value
-    } else {
-        0f
-    }
-
-    Canvas(modifier.rotate(rotation)) {
-        val d = minOf(size.width, size.height)
-        val radius = d / 2f
-        val center = Offset(size.width / 2f, size.height / 2f)
-
-        drawCircle(color = light, radius = radius, center = center)
-        drawArc(
-            color = dark,
-            startAngle = -90f,
-            sweepAngle = 180f,
-            useCenter = true,
-            topLeft = Offset(center.x - radius, center.y - radius),
-            size = Size(d, d),
-        )
-        drawCircle(color = dark, radius = radius / 2f, center = Offset(center.x, center.y - radius / 2f))
-        drawCircle(color = light, radius = radius / 2f, center = Offset(center.x, center.y + radius / 2f))
-        drawCircle(color = light, radius = radius / 6f, center = Offset(center.x, center.y - radius / 2f))
-        drawCircle(color = dark, radius = radius / 6f, center = Offset(center.x, center.y + radius / 2f))
-        drawCircle(
-            color = outline,
-            radius = radius,
-            center = center,
-            style = Stroke(width = 1.dp.toPx()),
-        )
-    }
-}
 
 @Composable
 fun HubHeader(
@@ -107,8 +45,6 @@ fun HubHeader(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        YinYang(modifier = Modifier.size(38.dp), rotating = true)
-        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -326,7 +262,6 @@ fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        YinYang(Modifier.size(56.dp), rotating = true)
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
