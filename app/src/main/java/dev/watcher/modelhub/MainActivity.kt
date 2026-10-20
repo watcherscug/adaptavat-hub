@@ -10,8 +10,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        val chatState = androidx.lifecycle.ViewModelProvider(this)[dev.watcher.modelhub.ui.ChatUiState::class.java]
         setContent {
-            ModelHubApp()
+            ModelHubApp(chatState)
         }
     }
 }

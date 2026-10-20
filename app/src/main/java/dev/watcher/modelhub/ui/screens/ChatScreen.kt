@@ -28,6 +28,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +38,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,8 +52,6 @@ import dev.watcher.modelhub.ui.LocalUiConfig
 import dev.watcher.modelhub.ui.components.EmptyState
 import dev.watcher.modelhub.ui.components.FilterPill
 import dev.watcher.modelhub.ui.components.HubHeader
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun ChatScreen(
@@ -61,30 +60,15 @@ fun ChatScreen(
 ) {
     val ui = LocalUiConfig.current
     val colors = MaterialTheme.colorScheme
-    val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val tasks by Services.downloads.tasks.collectAsState()
 
     val available = tasks.filter { it.status == DownloadStatus.DONE }
     val current = available.firstOrNull { it.key == state.selectedKey } ?: available.firstOrNull()
 
-    fun send() {
-        val text = state.input.trim()
-        if (text.isEmpty()) return
-        state.messages += ChatMessage(state.nextId++, text, true)
-        state.input = ""
-        state.typing = true
-        scope.launch {
-            delay(900)
-            state.messages += ChatMessage(state.nextId++, reply(text), false)
-            state.typing = false
-        }
-    }
-
-    LaunchedEffect(state.messages.size, state.typing) {
-        if (state.messages.isNotEmpty()) {
-            listState.animateScrollToItem(state.messages.lastIndex + if (state.typing) 1 else 0)
-        }
+    LaunchedEffect(state.messages.lastOrNull()?.text, state.typing) {
+        if (listState.layoutInfo.totalItemsCount > 0)
+            listState.scrollToItem(listState.layoutInfo.totalItemsCount - 1)
     }
 
     if (available.isEmpty()) {
@@ -120,6 +104,7 @@ fun ChatScreen(
                 HubHeader(
                     title = "Чат",
                     subtitle = current?.fileName ?: "Локальная модель",
+                    trailing = { TextButton(onClick = { state.clear() }, enabled = !state.typing) { Text("Новый") } },
                 )
             }
 
@@ -130,7 +115,7 @@ fun ChatScreen(
                             FilterPill(
                                 text = task.fileName.removeSuffix(".gguf"),
                                 selected = task.key == current?.key,
-                                onClick = { state.selectedKey = task.key },
+                                onClick = { if (!state.typing) state.select(task.key) },
                             )
                         }
                     }
@@ -147,9 +132,9 @@ fun ChatScreen(
 
             item {
                 Text(
-                    text = "Демо-ответы. Движок llama.cpp подключим следующим шагом.",
+                    text = state.error ?: state.status,
                     style = MaterialTheme.typography.labelSmall,
-                    color = colors.onSurfaceVariant,
+                    color = if (state.error != null) colors.error else colors.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -193,12 +178,12 @@ fun ChatScreen(
             }
             Spacer(Modifier.width(8.dp))
             FilledIconButton(
-                onClick = { send() },
-                enabled = state.input.isNotBlank(),
+                onClick = { if (state.typing) state.stop() else current?.let { state.send(it) } },
+                enabled = state.typing || (state.input.isNotBlank() && current != null),
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Отправить",
+                    imageVector = if (state.typing) Icons.Filled.Close else Icons.AutoMirrored.Filled.Send,
+                    contentDescription = if (state.typing) "Остановить" else "Отправить",
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -261,20 +246,5 @@ private fun TypingBubble() {
                 )
             }
         }
-    }
-}
-
-private fun reply(text: String): String {
-    val lower = text.lowercase()
-    return when {
-        lower.contains("привет") || lower.contains("hello") ->
-            "Привет. Пока я отвечаю заглушкой, но интерфейс и загрузка моделей уже настоящие."
-        lower.contains("сколько") ->
-            "N параметров × байты на параметр ≈ размер файла. Q4_K_M — примерно 0.6 ГБ на 1B параметров."
-        lower.contains("квант") || lower.contains("quant") ->
-            "Q4_K_M — лучший баланс качества и RAM для телефона. Q5_K_M тяжелее, Q4_0 легче, но грубее."
-        lower.contains("ram") || lower.contains("памят") ->
-            "Оставь системе ~1.2 ГБ и под KV-кэш ещё немного. Всё, что больше, уйдёт в свап и будет тормозить."
-        else -> "Принял. Сейчас это демо-ветка диалога: чек-лист — llama.cpp через NDK и стриминг токенов."
     }
 }

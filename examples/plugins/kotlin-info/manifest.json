@@ -1,0 +1,9 @@
+{
+  "apiVersion": 1,
+  "id": "example.kotlin",
+  "name": "Kotlin inventory",
+  "version": "1.0.0",
+  "language": "kotlin",
+  "entryPoint": "example.InventoryPlugin",
+  "commands": ["summary"]
+}

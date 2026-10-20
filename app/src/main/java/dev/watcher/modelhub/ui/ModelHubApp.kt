@@ -30,10 +30,13 @@ import dev.watcher.modelhub.ui.screens.ChatScreen
 import dev.watcher.modelhub.ui.screens.DownloadsScreen
 import dev.watcher.modelhub.ui.screens.ModelsScreen
 import dev.watcher.modelhub.ui.screens.SettingsScreen
+import dev.watcher.modelhub.ui.screens.WorkshopScreen
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import dev.watcher.modelhub.ui.theme.ModelHubTheme
 
 @Composable
-fun ModelHubApp() {
+fun ModelHubApp(chatState: ChatUiState) {
     val context = LocalContext.current
     val settings by Services.settings.state.collectAsState()
 
@@ -49,7 +52,6 @@ fun ModelHubApp() {
             var tab by rememberSaveable { mutableStateOf(0) }
             var showSettings by rememberSaveable { mutableStateOf(false) }
             val modelsState = remember { ModelsUiState() }
-            val chatState = remember { ChatUiState() }
 
             fun refreshHardware() {
                 hardware = HardwareInfo.read(context)
@@ -100,6 +102,8 @@ fun ModelHubApp() {
                                 },
                                 label = { Text("Чат") },
                             )
+                            NavigationBarItem(selected = tab == 3, onClick = { tab = 3 },
+                                icon = { Icon(Icons.Filled.Settings, null) }, label = { Text("Мастерская") })
                         }
                     }
                 },
@@ -136,10 +140,11 @@ fun ModelHubApp() {
                                 onOpenModels = { tab = 0 },
                             )
 
-                            else -> ChatScreen(
+                            2 -> ChatScreen(
                                 state = chatState,
                                 onOpenModels = { tab = 0 },
                             )
+                            else -> WorkshopScreen()
                         }
                     }
                 }

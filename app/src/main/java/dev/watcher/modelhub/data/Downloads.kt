@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -117,6 +118,14 @@ class DownloadManager(context: Context) {
     fun downloadedTasks(): List<DownloadTask> =
         _tasks.value.filter { it.status == DownloadStatus.DONE }
 
+    fun registerLocal(source: File) {
+        val dir = modelDir("local/workshop").apply { mkdirs() }
+        val dest = File(dir, source.name)
+        require(!dest.exists()) { "Модель с таким именем уже есть в библиотеке" }
+        source.copyTo(dest)
+        upsert(DownloadTask("local/workshop/${dest.name}", "local/workshop", dest.name, "", dest.length(), dest.length(), DownloadStatus.DONE))
+    }
+
     private fun launch(task: DownloadTask) {
         val job = scope.launch {
             val dir = modelDir(task.repoId).apply { mkdirs() }
@@ -134,6 +143,7 @@ class DownloadManager(context: Context) {
                         throw IOException("HTTP ${response.code}")
                     }
                     val length = response.body?.contentLength() ?: 0L
+                    if (response.code == 200) written = 0L
                     val total = if (response.code == 206) written + length else length
                     if (total > 0L) {
                         upsert(task.copy(totalBytes = total, status = DownloadStatus.RUNNING))
@@ -167,9 +177,19 @@ class DownloadManager(context: Context) {
                     }
                 }
 
+                ensureActive()
+                if (task.totalBytes > 0L && part.length() != task.totalBytes) {
+                    throw IOException("Размер GGUF не совпадает: загрузка не завершена")
+                }
+                part.inputStream().use { stream ->
+                    val magic = ByteArray(4)
+                    if (stream.read(magic) != 4 || !magic.contentEquals(byteArrayOf(71, 71, 85, 70))) {
+                        throw IOException("Файл не является GGUF-моделью")
+                    }
+                }
                 if (part.length() > 0L) {
                     dest.delete()
-                    part.renameTo(dest)
+                    if (!part.renameTo(dest)) throw IOException("Не удалось сохранить модель")
                     upsert(
                         task.copy(
                             bytes = dest.length(),
