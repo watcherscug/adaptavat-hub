@@ -1,4 +1,5 @@
 {
+  "type": "adpp-plugin",
   "apiVersion": 1,
   "id": "example.kotlin",
   "name": "Kotlin inventory",

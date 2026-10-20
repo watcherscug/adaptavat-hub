@@ -10,16 +10,22 @@ import dev.watcher.modelhub.data.Services
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import java.util.zip.ZipInputStream
+import java.util.concurrent.TimeUnit
 
-data class InstalledPlugin(val id: String, val name: String, val language: String, val commands: List<String>, val enabled: Boolean)
+data class InstalledPlugin(val id: String, val name: String, val version: String, val language: String, val commands: List<String>, val enabled: Boolean)
 
 class Workshop(private val context: Context) : PluginApi {
+    private val http = OkHttpClient.Builder().callTimeout(45, TimeUnit.SECONDS).build()
     private val root = File(context.filesDir, "workshop").apply { mkdirs() }
     private val pluginsDir = File(root, "plugins").apply { mkdirs() }
     private val files = File(root, "files").apply { mkdirs() }
@@ -73,7 +79,7 @@ class Workshop(private val context: Context) : PluginApi {
         installed.value = pluginsDir.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }.mapNotNull { dir ->
             runCatching {
                 val m = JSONObject(File(dir, "manifest.json").readText())
-                InstalledPlugin(m.getString("id"), m.getString("name"), m.getString("language"),
+                InstalledPlugin(m.getString("id"), m.getString("name"), m.optString("version", "?"), m.getString("language"),
                     (0 until m.getJSONArray("commands").length()).map { m.getJSONArray("commands").getString(it) },
                     prefs.getBoolean(dir.name, true))
             }.getOrNull()
@@ -95,6 +101,80 @@ class Workshop(private val context: Context) : PluginApi {
         refresh()
     }
 
+    fun executePluginCommand(id: String, command: String, argumentsJson: String = "{}") {
+        submit("run $id:$command $argumentsJson")
+    }
+
+    suspend fun searchCatalog(query: String): List<PluginCatalogItem> = withContext(Dispatchers.IO) {
+        require(query.isNotBlank()) { "Введи поисковый запрос" }
+        val url = "https://huggingface.co/api/datasets?search=" + java.net.URLEncoder.encode(query, "UTF-8") + "&limit=30&sort=downloads&direction=-1"
+        val request = Request.Builder().url(url).header("User-Agent", "Adaptavat-Hub/0.1").build()
+        http.newCall(request).execute().use { response ->
+            check(response.isSuccessful) { "Каталог Hugging Face: HTTP ${response.code}" }
+            val results = org.json.JSONArray(response.body?.string().orEmpty())
+            buildList {
+                for (i in 0 until results.length()) {
+                    val result = results.optJSONObject(i) ?: continue
+                    val repoId = result.optString("id")
+                    if (repoId.isBlank()) continue
+                    val manifestRequest = Request.Builder()
+                        .url("https://huggingface.co/datasets/$repoId/resolve/main/manifest.json")
+                        .header("User-Agent", "Adaptavat-Hub/0.1").build()
+                    runCatching {
+                        http.newCall(manifestRequest).execute().use { manifestResponse ->
+                            if (!manifestResponse.isSuccessful) return@use
+                            val manifest = JSONObject(manifestResponse.body?.string().orEmpty())
+                            if (manifest.optInt("apiVersion") != 1 || manifest.optString("type") != "adpp-plugin") return@use
+                            val id = manifest.optString("id")
+                            if (!id.matches(Regex("[a-z][a-z0-9_.-]{2,79}"))) return@use
+                            if (manifest.optString("language") !in setOf("python", "kotlin")) return@use
+                            add(PluginCatalogItem(
+                                id = id,
+                                name = manifest.optString("name", id),
+                                version = manifest.optString("version", "?"),
+                                language = manifest.optString("language"),
+                                description = manifest.optString("description", "Плагин Adaptavat API v1"),
+                                downloadUrl = "https://huggingface.co/datasets/$repoId/resolve/main/plugin.adpp",
+                            ))
+                        }
+                    }
+                }
+            }.distinctBy { it.id }
+        }
+    }
+
+    suspend fun installFromCatalog(item: PluginCatalogItem) = withContext(worker) {
+        check(!running.value) { "Мастерская занята" }
+        running.value = true
+        try {
+        require(item.downloadUrl.startsWith("https://huggingface.co/datasets/")) { "Каталог вернул неизвестный источник" }
+        require(!File(pluginsDir, item.id).exists()) { "Плагин уже установлен" }
+        val request = Request.Builder().url(item.downloadUrl).header("User-Agent", "Adaptavat-Hub/0.1").build()
+        http.newCall(request).execute().use { response ->
+            check(response.isSuccessful) { "Загрузка плагина: HTTP ${response.code}" }
+            val temp = File(pluginsDir, ".catalog-${System.nanoTime()}.adpp")
+            try {
+                requireNotNull(response.body).byteStream().use { input ->
+                    temp.outputStream().use { out ->
+                        val buffer = ByteArray(65536)
+                        var total = 0L
+                        while (true) {
+                            val n = input.read(buffer)
+                            if (n < 0) break
+                            total += n
+                            require(total <= 64L * 1024 * 1024) { "ADPP превышает 64 МБ" }
+                            out.write(buffer, 0, n)
+                        }
+                    }
+                }
+                require(temp.length() in 1..(64L * 1024 * 1024)) { "Некорректный размер ADPP" }
+                install(Uri.fromFile(temp), item.id)
+                check(installed.value.any { it.id == item.id }) { "ID в архиве не совпал с записью каталога" }
+            } finally { temp.delete() }
+        }
+        } finally { running.value = false }
+    }
+
     @Synchronized fun importFile(uri: Uri, plugin: Boolean) {
         if (running.value) return
         running.value = true
@@ -113,7 +193,7 @@ class Workshop(private val context: Context) : PluginApi {
         }
     }
 
-    private fun install(uri: Uri) {
+    private fun install(uri: Uri, expectedId: String? = null) {
         val staging = File(pluginsDir, ".install-${System.nanoTime()}").apply { mkdirs() }
         try {
             var total = 0L
@@ -144,8 +224,10 @@ class Workshop(private val context: Context) : PluginApi {
             }
             val m = JSONObject(File(staging, "manifest.json").readText())
             val id = m.getString("id")
+            require(expectedId == null || id == expectedId) { "ID архива не совпадает с каталогом" }
             require(id.matches(Regex("[a-z][a-z0-9_.-]{2,79}"))) { "Некорректный id" }
             require(m.getInt("apiVersion") == 1) { "Неподдерживаемая версия API" }
+            require(m.optString("type", "adpp-plugin") == "adpp-plugin") { "Это не ADPP-плагин" }
             require(m.getString("name").isNotBlank() && m.getString("version").isNotBlank())
             val language = m.getString("language")
             require(language == "python" || language == "kotlin")

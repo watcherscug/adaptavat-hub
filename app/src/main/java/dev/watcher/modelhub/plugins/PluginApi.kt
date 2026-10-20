@@ -12,3 +12,12 @@ interface PluginApi {
     fun models(): String
     fun invoke(command: String, argumentsJson: String): String
 }
+
+data class PluginCatalogItem(
+    val id: String,
+    val name: String,
+    val version: String,
+    val language: String,
+    val description: String,
+    val downloadUrl: String,
+)

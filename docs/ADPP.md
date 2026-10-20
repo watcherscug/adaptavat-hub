@@ -2,8 +2,17 @@
 
 ## Runtime and installation
 
-Open **Мастерская**. Import `.adpp` using **+ ADPP**, then use `plugins`
-and `run example.info:summary {}`. Plugins can be disabled or removed in this screen.
+Open **Мастерская → Плагины → Установить .adpp** and select an archive using
+the Android file picker. Each installed plugin has an enable switch, delete button,
+and buttons for its exported commands. A command opens a JSON argument dialog;
+its result appears in the Console tab. Console commands remain optional.
+
+The **Каталог** tab searches public Hugging Face dataset repositories (plugin
+archives are not model weights). To publish a discoverable entry, put
+`manifest.json` and `plugin.adpp` in the repository root. Add `"type": "adpp-plugin"`
+to the manifest. The manifest must target API v1 and language python/kotlin.
+Search checks at most 30 repositories; this is a simple community index, not a
+curated marketplace. Installation verifies the archive's ID before installing it.
 Installing an archive does not execute it: its entry point runs on the first command.
 Updates currently require removing the old version first. Module-local state is not
 persistent across process restarts; save persistent data in `adpp.workspace()`.
